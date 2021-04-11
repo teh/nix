@@ -115,6 +115,7 @@ rec         { return REC; }
 inherit     { return INHERIT; }
 or          { return OR_KW; }
 \.\.\.      { return ELLIPSIS; }
+\:\:        { return TYPE_ANNOTATION; }
 
 \=\=        { return EQ; }
 \!\=        { return NEQ; }

@@ -183,6 +183,33 @@ string showType(ValueType type)
     abort();
 }
 
+ValueType readType(string type)
+{
+    if (type == "int") {
+        return nInt;
+    } else if (type == "bool") {
+        return nBool;
+    } else if (type == "string") {
+        return nString;
+    } else if (type == "path") {
+        return nPath;
+    } else if (type == "null") {
+        return nNull;
+    } else if (type == "set") {
+        return nAttrs;
+    } else if (type == "list") {
+        return nList;
+    } else if (type == "function") {
+        return nFunction;
+    } else if (type == "float") {
+        return nFloat;
+    } else if (type == "thunk") {
+        return nThunk;
+    } else {
+        throw EvalError(fmt("unsupported type '%s'", type));
+    }
+    abort();
+}
 
 string showType(const Value & v)
 {
@@ -663,6 +690,12 @@ LocalNoInlineNoReturn(void throwTypeError(const Pos & pos, const char * s, const
     });
 }
 
+LocalNoInlineNoReturn(void throwTypeError(const char * s, const Value* v, const ValueType & vt))
+{
+    throw TypeError(s, showType(*v), showType(vt));
+}
+
+
 LocalNoInlineNoReturn(void throwAssertionError(const Pos & pos, const char * s, const string & s1))
 {
     throw AssertionError({
@@ -836,7 +869,10 @@ Value * ExprVar::maybeThunk(EvalState & state, Env & env)
     Value * v = state.lookupVar(&env, *this, true);
     /* The value might not be initialised in the environment yet.
        In that case, ignore it. */
-    if (v) { nrAvoided++; return v; }
+    if (v) {
+        nrAvoided++;
+        return v;
+    }
     return Expr::maybeThunk(state, env);
 }
 
@@ -1039,8 +1075,14 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
     }
 
     else
-        for (auto & i : attrs)
-            v.attrs->push_back(Attr(i.first, i.second.e->maybeThunk(state, env), &i.second.pos));
+        for (auto & i : attrs) {
+            v.attrs->push_back(Attr(
+                i.first,
+                i.second.e->maybeThunk(state, env),
+                i.second.e->typeAnnotation == "" ? ValueType::nNull : readType(i.second.e->typeAnnotation),
+                &i.second.pos
+            ));
+        }
 
     /* Dynamic attrs apply *after* rec and __overrides. */
     for (auto & i : dynamicAttrs) {
@@ -1121,6 +1163,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
     Value vTmp;
     Pos * pos2 = 0;
     Value * vAttrs = &vTmp;
+    ValueType typeAnnotation;
 
     e->eval(state, env, vTmp);
 
@@ -1145,10 +1188,17 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
             }
             vAttrs = j->value;
             pos2 = j->pos;
+            typeAnnotation = j->typeAnnotation;
+
             if (state.countCalls && pos2) state.attrSelects[*pos2]++;
         }
 
         state.forceValue(*vAttrs, ( pos2 != NULL ? *pos2 : this->pos ) );
+
+        if (typeAnnotation != ValueType::nNull) {
+            if (vAttrs->type() != typeAnnotation)
+              throwTypeError("value is a %1%, but type annotion is %2%", vAttrs, typeAnnotation);
+        }
 
     } catch (Error & e) {
         if (pos2 && pos2->file != state.sDerivationNix)

@@ -18,9 +18,13 @@ struct Attr
     Symbol name;
     Value * value;
     Pos * pos;
+    ValueType typeAnnotation;
+
     Attr(Symbol name, Value * value, Pos * pos = &noPos)
-        : name(name), value(value), pos(pos) { };
-    Attr() : pos(&noPos) { };
+        : name(name), value(value), pos(pos), typeAnnotation(ValueType::nNull) { };
+    Attr(Symbol name, Value * value, const ValueType ta, Pos * pos = &noPos)
+        : name(name), value(value), pos(pos), typeAnnotation(ta) { };
+    Attr() : pos(&noPos), typeAnnotation(ValueType::nNull)  { };
     bool operator < (const Attr & a) const
     {
         return name < a.name;

@@ -21,7 +21,7 @@ makefiles = \
 
 -include Makefile.config
 
-OPTIMIZE = 1
+OPTIMIZE = 0
 
 ifeq ($(OPTIMIZE), 1)
   GLOBAL_CXXFLAGS += -O3

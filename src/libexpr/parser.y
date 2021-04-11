@@ -22,6 +22,8 @@
 #include "eval.hh"
 #include "globals.hh"
 
+#include <iostream>
+
 namespace nix {
 
     struct ParseData
@@ -82,7 +84,7 @@ static void dupAttr(Symbol attr, const Pos & pos, const Pos & prevPos)
 
 
 static void addAttr(ExprAttrs * attrs, AttrPath & attrPath,
-    Expr * e, const Pos & pos)
+    Expr * e, const Pos & pos, std::string *typeAnnotation)
 {
     AttrPath::iterator i;
     // All attrpaths have at least one attr
@@ -135,6 +137,9 @@ static void addAttr(ExprAttrs * attrs, AttrPath & attrPath,
             // This attr path is not defined. Let's create it.
             attrs->attrs[i->symbol] = ExprAttrs::AttrDef(e, pos);
             e->setName(i->symbol);
+            if (typeAnnotation != nullptr) {
+                e->setTypeAnnotation(*typeAnnotation);
+            }
         }
     } else {
         attrs->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, e, pos));
@@ -280,6 +285,7 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
   char * uri;
   std::vector<nix::AttrName> * attrNames;
   std::vector<nix::Expr *> * string_parts;
+  std::string *typeAnnotation;
 }
 
 %type <e> start expr expr_function expr_if expr_op
@@ -292,13 +298,14 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
 %type <string_parts> string_parts_interpolated ind_string_parts
 %type <e> string_parts string_attr
 %type <id> attr
+%type <typeAnnotation> optional_type
 %token <id> ID ATTRPATH
 %token <e> STR IND_STR
 %token <n> INT
 %token <nf> FLOAT
 %token <path> PATH HPATH SPATH
 %token <uri> URI
-%token IF THEN ELSE ASSERT WITH LET IN REC INHERIT EQ NEQ AND OR IMPL OR_KW
+%token IF THEN ELSE ASSERT WITH LET IN REC INHERIT EQ NEQ AND OR IMPL OR_KW TYPE_ANNOTATION
 %token DOLLAR_CURLY /* == ${ */
 %token IND_STRING_OPEN IND_STRING_CLOSE
 %token ELLIPSIS
@@ -459,7 +466,7 @@ ind_string_parts
   ;
 
 binds
-  : binds attrpath '=' expr ';' { $$ = $1; addAttr($$, *$2, $4, makeCurPos(@2, data)); }
+  : binds attrpath optional_type '=' expr ';' { $$ = $1; addAttr($$, *$2, $5, makeCurPos(@2, data), $3); }
   | binds INHERIT attrs ';'
     { $$ = $1;
       for (auto & i : *$3) {
@@ -479,6 +486,11 @@ binds
       }
     }
   | { $$ = new ExprAttrs; }
+  ;
+
+optional_type
+  : TYPE_ANNOTATION ID { $$ = new std::string($2); }
+  | { $$ = nullptr; }
   ;
 
 attrs

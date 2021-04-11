@@ -83,6 +83,10 @@ struct Expr
     virtual void eval(EvalState & state, Env & env, Value & v);
     virtual Value * maybeThunk(EvalState & state, Env & env);
     virtual void setName(Symbol & name);
+    virtual void setTypeAnnotation(std::string ta) {
+        typeAnnotation = ta;
+    }
+    std::string typeAnnotation;
 };
 
 std::ostream & operator << (std::ostream & str, const Expr & e);
